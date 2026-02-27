@@ -1,0 +1,10 @@
+fastapi[standard]
+uvicorn
+sqlalchemy 
+alembic 
+sqlmodel
+cryptography
+python-jose
+passlib
+bcrypt==4.3.0
+python-dotenv
