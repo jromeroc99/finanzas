@@ -12,21 +12,21 @@ cd backend-FastApi
 
 
 3. **Configura el backend:**
-   ```bash
-   cd backend
-   python3 -m venv venv
-   source venv/bin/activate  # En Windows: venv\Scripts\activate
-   pip install -r requirements.txt
-   uvicorn main:app --reload
-   ```
-   El backend se ejecutará en el puerto por defecto (8000).
+```bash
+cd backend
+python3 -m venv venv
+source venv/bin/activate  # En Windows: venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn main:app --reload
+```
+El backend se ejecutará en el puerto por defecto (8000).
 
 4. **Ejecuta las migraciones de base de datos:**
-   ```bash
-   cd backend
-   alembic upgrade head
-   ```
-   Esto aplicará todas las migraciones pendientes a la base de datos MySQL.
+```bash
+cd backend
+alembic upgrade head
+```
+Esto aplicará todas las migraciones pendientes a la base de datos MySQL.
 
 ## Migraciones de Base de Datos
 
