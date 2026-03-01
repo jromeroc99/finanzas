@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import jwt, JWTError
 from passlib.context import CryptContext
@@ -9,6 +9,7 @@ from sqlmodel import SQLModel, Field, Session, select
 from pydantic import EmailStr
 from database import engine
 from models import User
+from limiter import limiter
 
 load_dotenv()
 
@@ -17,6 +18,7 @@ router = APIRouter(
     tags=["auth"],
     responses={status.HTTP_404_NOT_FOUND: {"message": "No encontrado"}}
 )
+
 
 # Crear Secret Key para JWT: openssl rand -hex 32
 ALGORITHM = "HS256"
@@ -52,6 +54,11 @@ def search_user_db(username: str) -> User | None:
         
         return user_db
     
+def search_user_db_by_email(email: str) -> User | None:
+    with Session(engine) as session:
+        statement = select(User).where(User.email == email)
+        return session.exec(statement).first()
+    
 def search_user(username: str) -> UserRead | None:
     user_db = search_user_db(username)
     if not user_db:
@@ -79,24 +86,6 @@ async def auth_user(token: str = Depends(oauth2)):
 
     return search_user(username)
 
-
-async def auth_user(token: str = Depends(oauth2)):
-
-    exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Credenciales de autenticación inválidas",
-        headers={"WWW-Authenticate": "Bearer"})
-
-    try:
-        username = jwt.decode(token, SECRET, algorithms=[ALGORITHM]).get("sub")
-        if username is None:
-            raise exception
-
-    except JWTError:
-        raise exception
-
-    return search_user(username)
-
 async def current_user(user: UserRead = Depends(auth_user)):
     if user.disabled:
         raise HTTPException(
@@ -106,7 +95,8 @@ async def current_user(user: UserRead = Depends(auth_user)):
     return user
 
 @router.post("/login")
-async def login(form: OAuth2PasswordRequestForm = Depends()):
+@limiter.limit("5/minute")
+async def login(request: Request, form: OAuth2PasswordRequestForm = Depends()):
 
     user_db = search_user_db(form.username)
     if not user_db:
@@ -125,11 +115,17 @@ async def login(form: OAuth2PasswordRequestForm = Depends()):
     return {"access_token": jwt.encode(access_token, SECRET, algorithm=ALGORITHM), "token_type": "bearer"}
 
 @router.post("/register", response_model=UserRead)
-async def register(user: UserCreate):
+@limiter.limit("3/minute")
+async def register(request: Request, user: UserCreate):
     user_db = search_user_db(user.username)
     if user_db:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="El usuario ya existe")
+            status_code=status.HTTP_400_BAD_REQUEST, detail="El nombre de usuario ya está registrado")
+
+    user_by_email = search_user_db_by_email(user.email)
+    if user_by_email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="El email ya está registrado")
 
     hashed_password = crypt.hash(user.password)
     
